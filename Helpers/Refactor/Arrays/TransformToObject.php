@@ -141,7 +141,6 @@ class TransformToObject extends AbstractArrayHelper
         return $this;
     }
 
-
     private function doGenerateObjectClass()
     {
         if ($this->isCanGenerateObject()) {
