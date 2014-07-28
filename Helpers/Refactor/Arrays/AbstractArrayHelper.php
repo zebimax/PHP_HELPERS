@@ -3,6 +3,7 @@
 namespace Helpers\Refactor\Arrays;
 
 use Helpers\AbstractHelper;
+use Helpers\Exceptions\Arrays\ArraysException;
 
 class AbstractArrayHelper extends AbstractHelper
 {
@@ -11,7 +12,7 @@ class AbstractArrayHelper extends AbstractHelper
     protected $array = [];
     protected $dirForGenerate;
 
-    protected static $defaultConfigs = [
+    protected static $staticDefaultConfigs = [
         self::CONFIG_DIR_FOR_GENERATE => 'data'
     ];
 
@@ -80,4 +81,19 @@ class AbstractArrayHelper extends AbstractHelper
         return $this->dirForGenerate;
     }
 
+    protected function makeDirForGenerate()
+    {
+        if (!is_dir($this->getDirForGenerate())) {
+            mkdir($this->getDirForGenerate());
+        }
+    }
+
+    protected function dirForGenerateMustExists()
+    {
+        if (!is_dir($this->getDirForGenerate())) {
+            throw ArraysException::dirForGenerateNotExists(
+                $this->getDirForGenerate()
+            );
+        }
+    }
 } 

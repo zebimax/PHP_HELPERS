@@ -13,4 +13,11 @@ class ArraysException extends HelpersException
             var_export($array, true), $className, $operation
         ));
     }
+
+    public static function dirForGenerateNotExists($dirName) {
+        return new self(sprintf(
+            'Dir %s for generate not exists and can\'t be created(%s)',
+            $dirName, error_get_last()
+        ));
+    }
 } 

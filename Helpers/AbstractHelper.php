@@ -9,17 +9,21 @@
 namespace Helpers;
 
 use Helpers\Exceptions\HelpersException;
+use Helpers\Refactor\Arrays\AbstractArrayHelper;
 
 abstract class AbstractHelper
 {
     const OPERATION_NOT_RUN = 'There Are No Operations Planned';
-
+    const SUCCESS_MESSAGE = 'success';
+    const MESSAGE_SUCCESS_TPL = 'Operation %s was successfully done!';
+    const DEFAULT_MESSAGE = 'Unknown operation';
     protected $configs = [];
     protected $configDirectories = [];
     protected $reflection;
     protected $defaultConfigs = [];
     protected $operation;
     protected static $staticDefaultConfigs = [];
+    protected $definedMessage = [];
 
     /**
      * @param array $config
@@ -28,8 +32,47 @@ abstract class AbstractHelper
     {
         $this->config($config);
         $this->operation = self::OPERATION_NOT_RUN;
+        return $this;
     }
 
+    protected function writeMessage($messageCode)
+    {
+        switch ($messageCode) {
+            case self::SUCCESS_MESSAGE:
+                $messageToWrite = $this->getSuccessMessage();
+                break;
+            case $this->isMessageDefined($messageCode);
+                $messageToWrite = $this->getDefinedMessage($messageCode);
+                break;
+            default :
+                $messageToWrite = self::DEFAULT_MESSAGE;
+                break;
+        }
+        echo $messageToWrite . PHP_EOL;
+    }
+
+    protected function getSuccessMessage()
+    {
+        return sprintf(self::MESSAGE_SUCCESS_TPL, $this->getOperation());
+    }
+
+    protected function isMessageDefined($messageCode)
+    {
+        return isset($this->definedMessage[$messageCode]);
+    }
+
+    protected function getDefinedMessage($messageCode)
+    {
+        if ($this->isMethodForDefinedMessageExists($messageCode)) {
+            return $this->$this->getDefinedMessageMethod($messageCode);
+        }
+        return self::DEFAULT_MESSAGE;
+    }
+
+    protected function getDefinedMessageMethod($messageCode)
+    {
+        return $this->definedMessage[$messageCode];
+    }
     /**
      * @param array $config
      */
@@ -86,6 +129,19 @@ abstract class AbstractHelper
         return $option;
     }
 
+    protected function getOperation()
+    {
+        return $this->operation;
+    }
+
+    /**
+     * @param string $operation
+     */
+    public function setOperation($operation)
+    {
+        $this->operation = $operation;
+    }
+
     /**
      * @return \ReflectionClass
      */
@@ -129,12 +185,15 @@ abstract class AbstractHelper
             if (file_exists($filename)) {
                 $dirConfigs = include_once $this->getBaseConfigsPath($configDir);
                 $class = $this->getReflection()->getShortName();
-                $parentConfig = $this->getParentConfigs($dirConfigs, $this->getParentClass());
-                if (isset($dirConfigs[$class])) {
+                $dirConfigsWithParent = array_merge(
+                    $dirConfigs,
+                    $this->getParentConfigs($dirConfigs, $this->getParentClass())
+                );
+                if (isset($dirConfigsWithParent[$class])) {
                     $this->configs = array_merge(
-                        $parentConfig,
-                        (array)$dirConfigs[$class],
-                        $this->configs);
+                        (array)$dirConfigsWithParent[$class],
+                        $this->configs
+                    );
                 }
             }
         }
@@ -204,11 +263,34 @@ abstract class AbstractHelper
     {
         $parentDefaultConfigs = [];
         if ($reflectionClass->getParentClass()) {
+            $parentClassName = $reflectionClass->getParentClass()->getName();
+            $parentStaticDefaultConfigs = $this->getParentDefaultStaticProperties($parentClassName);
             $parentDefaultConfigs = array_merge(
                 $parentDefaultConfigs,
-                $this->getParentDefaultConfigs($reflectionClass->getParentClass())
+                $this->getParentDefaultConfigs($reflectionClass->getParentClass()),
+                $parentStaticDefaultConfigs
             );
         }
         return $parentDefaultConfigs;
     }
+
+    /**
+     * @param $messageCode
+     * @return bool
+     */
+    protected function isMethodForDefinedMessageExists($messageCode)
+    {
+        return method_exists($this, AbstractArrayHelper::getValue($messageCode, $this->definedMessage));
+    }
+
+    /**
+     * @param $parentClassName
+     * @return array
+     */
+    private function getParentDefaultStaticProperties($parentClassName)
+    {
+        return property_exists($parentClassName, 'staticDefaultConfigs')
+            ? $parentClassName::$staticDefaultConfigs : [];
+    }
+
 }
