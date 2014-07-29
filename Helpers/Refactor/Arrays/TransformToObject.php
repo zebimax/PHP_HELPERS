@@ -16,9 +16,16 @@ class TransformToObject extends AbstractArrayHelper
     const CONFIG_CLASS_NAME_FOR_GENERATE = 'classNameForGenerate';
     const CONFIG_VALUES_AS_DEFAULT       = 'valuesAsDefault';
     const CONFIG_PROPERTY_VISIBILITY     = 'propertyVisibility';
+    const CONFIG_SETTERS_VISIBILITY     = 'getterVisibility';
+    const CONFIG_GETTERS_VISIBILITY     = 'setterVisibility';
     const CONFIG_ARRAY_VALUES_AS_DEFAULT = 'arrayValuesAsDefault';
     const CONFIG_DEFAULT_PROPERTY_VALUE  = 'defaultPropertyValue';
+    const CONFIG_GENERATE_SETTERS  = 'generateSetters';
+    const CONFIG_GENERATE_GETTERS  = 'generateGetters';
+    const CONFIG_TYPE_FROM_VALUE  = 'typeFromValue';
 
+    const EMPTY_VALUE = 'empty';
+    const PROPERTY_NAME = 'propertyName';
 
     const OPERATION_GENERATE_CLASS       = 'Generate Object Data From Array';
 
@@ -27,12 +34,17 @@ class TransformToObject extends AbstractArrayHelper
     const SUCCESS_GENERATE_MESSAGE_TPL = 'Class %s was successfully generated in file $s';
 
     protected static $staticDefaultConfigs = [
-        self::CONFIG_STRING_INDEXES          => false,
+        self::CONFIG_STRING_INDEXES          => true,
         self::CONFIG_FILE_FOR_GENERATE       => 'ArrayObject.php',
         self::CONFIG_CLASS_NAME_FOR_GENERATE => 'GeneratedClass',
         self::CONFIG_VALUES_AS_DEFAULT       => false,
         self::CONFIG_PROPERTY_VISIBILITY     => PHPCodeGenerator::VISIBILITY_PRIVATE,
-        self::CONFIG_ARRAY_VALUES_AS_DEFAULT => false
+        self::CONFIG_ARRAY_VALUES_AS_DEFAULT => false,
+        self::CONFIG_GENERATE_SETTERS        => true,
+        self::CONFIG_GENERATE_GETTERS        => true,
+        self::CONFIG_GETTERS_VISIBILITY      => PHPCodeGenerator::VISIBILITY_PUBLIC,
+        self::CONFIG_SETTERS_VISIBILITY      => PHPCodeGenerator::VISIBILITY_PUBLIC,
+        self::CONFIG_TYPE_FROM_VALUE         => false
     ];
 
     protected $definedMessage = [
@@ -43,6 +55,7 @@ class TransformToObject extends AbstractArrayHelper
     private $fileForGenerate;
     private $classNameForGenerate;
     private $classCode;
+    private $generatedProperties = [];
 
     public function __construct(array $array = [], array $config = [], array $fieldNames = [])
     {
@@ -114,7 +127,7 @@ class TransformToObject extends AbstractArrayHelper
     {
         $regex = '|\W|';
         $replaced = preg_replace($regex, '', $index);
-        return is_string($replaced) && str_replace('_', '', $replaced) && !is_numeric($replaced{1});
+        return is_string($replaced) && str_replace('_', '', $replaced) && !is_numeric($replaced{0});
     }
 
     /**
@@ -143,7 +156,7 @@ class TransformToObject extends AbstractArrayHelper
     {
         $optionWithDefault = $this->getOptionWithDefault(self::CONFIG_STRING_INDEXES);
         $isValidStringIndexes = $this->isValidStringIndexes($this->array);
-        return $optionWithDefault && $isValidStringIndexes;
+        return $optionWithDefault && !$isValidStringIndexes;
     }
 
     /**
@@ -178,9 +191,49 @@ class TransformToObject extends AbstractArrayHelper
             } else {
                 $classCode .= $this->generatePropertiesFromFieldsArray();
             }
+            $classCode .= $this->generateGetters();
+            $classCode .= $this->generateSetters();
             $classCode .= PHPCodeGenerator::closeBrace();
+
             $this->setClassCode($classCode) ;
         }
+    }
+
+    private function generateSetters()
+    {
+        $settersCode = '';
+        if ($this->getDefaultOptionValue(self::CONFIG_GENERATE_SETTERS)) {
+            foreach ($this->generatedProperties as $propertyArray) {
+
+                $settersCode .= PHPCodeGenerator::setter(
+                    AbstractArrayHelper::getValue(self::PROPERTY_NAME, (array) $propertyArray),
+                    $this->getAvailableOptionValue($propertyArray, self::CONFIG_SETTERS_VISIBILITY),
+                    $this->getPropertyType($propertyArray),
+                    $this->getAvailableOptionValue($propertyArray, self::CONFIG_FLUENT)
+                );
+            }
+        }
+        return $settersCode;
+    }
+
+    private function getPropertyType($propertyArray)
+    {
+        return 'ASD';
+    }
+
+    private function generateGetters()
+    {
+        $gettersCode = '';
+        if ($this->getDefaultOptionValue(self::CONFIG_GENERATE_GETTERS)) {
+            foreach ($this->generatedProperties as $propertyArray) {
+
+                $gettersCode .= PHPCodeGenerator::getter(
+                    AbstractArrayHelper::getValue(self::PROPERTY_NAME, (array) $propertyArray),
+                    $this->getAvailableOptionValue($propertyArray, self::CONFIG_GETTERS_VISIBILITY)
+                );
+            }
+        }
+        return $gettersCode;
     }
 
     private function generatePropertiesFromArray()
@@ -191,7 +244,7 @@ class TransformToObject extends AbstractArrayHelper
     private function getAvailableOptionValue($value, $option)
     {
         $result = $this->getIndividualOption($value, $option);
-        if (!$result) {
+        if ($result === self::EMPTY_VALUE) {
             $result = $this->getDefaultOptionValue($option);
         }
         return $result;
@@ -200,7 +253,7 @@ class TransformToObject extends AbstractArrayHelper
     private function getIndividualOption($value, $option)
     {
         return AbstractArrayHelper::
-        getValue($option, (array)$value);
+        getValue($option, (array)$value, self::EMPTY_VALUE);
     }
 
     private function generatePropertiesFromFieldsArray()
@@ -231,7 +284,18 @@ class TransformToObject extends AbstractArrayHelper
             $initValue = $this->getAvailableOptionValue($value, self::CONFIG_VALUES_AS_DEFAULT)
                 ? $this->getDefaultPropertyValue($value) : null;
             $propertyVisibility = $this->getAvailableOptionValue($value, self::CONFIG_PROPERTY_VISIBILITY);
+
             $propertiesCode .= PHPCodeGenerator::property($this->normalise($key), $propertyVisibility, $initValue);
+            $this->generatedProperties[] = [
+                self::CONFIG_SETTERS_VISIBILITY     => $this->getAvailableOptionValue($value, self::CONFIG_SETTERS_VISIBILITY),
+                self::CONFIG_GETTERS_VISIBILITY     => $this->getAvailableOptionValue($value, self::CONFIG_GETTERS_VISIBILITY),
+                self::CONFIG_TYPE_FROM_VALUE        => $this->getAvailableOptionValue($value, self::CONFIG_TYPE_FROM_VALUE),
+                self::CONFIG_GENERATE_GETTERS       => $this->getAvailableOptionValue($value, self::CONFIG_GENERATE_GETTERS),
+                self::CONFIG_GENERATE_SETTERS       => $this->getAvailableOptionValue($value, self::CONFIG_GENERATE_SETTERS),
+                self::CONFIG_FLUENT                 => $this->getAvailableOptionValue($value, self::CONFIG_FLUENT),
+                self::PROPERTY_NAME                 => $this->normalise($key),
+                self::CONFIG_DEFAULT_PROPERTY_VALUE => $initValue
+            ];
         }
         return $propertiesCode;
     }
@@ -322,6 +386,7 @@ class TransformToObject extends AbstractArrayHelper
         $normalized = '';
         $explode = explode('_', $replacedValue);
         foreach ($explode as $key => $part) {
+            if (!$part) $part = '_';
             $normalized .= (int)$key ? ucfirst($part) : $part;
         }
         return $normalized;
