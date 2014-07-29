@@ -121,7 +121,7 @@ abstract class AbstractHelper
             $optionName,
             $this->getDefaultOptionValue($optionName)
         );
-        if(!$option) {
+        if(is_null($option)) {
             throw HelpersException::optionNotFound(
                 $optionName,
                 $this->getReflection()->getName());

@@ -27,7 +27,7 @@ class TransformToObject extends AbstractArrayHelper
     const SUCCESS_GENERATE_MESSAGE_TPL = 'Class %s was successfully generated in file $s';
 
     protected static $staticDefaultConfigs = [
-        self::CONFIG_STRING_INDEXES          => true,
+        self::CONFIG_STRING_INDEXES          => false,
         self::CONFIG_FILE_FOR_GENERATE       => 'ArrayObject.php',
         self::CONFIG_CLASS_NAME_FOR_GENERATE => 'GeneratedClass',
         self::CONFIG_VALUES_AS_DEFAULT       => false,
@@ -84,20 +84,20 @@ class TransformToObject extends AbstractArrayHelper
 
     protected function validateArray()
     {
-        if ($this->isCanUseStringIndexes()) {
+        if ($this->isMustAndCanTUseStringIndexes()) {
              throw ArraysException::arrayNotValid(
                  $this->array,
                  $this->getReflection()->getName(),
                  $this->operation
              );
-        } elseif ($this->isCanUseFieldNames()) {
-            throw TransformToObjectException::fieldNamesArrayNotValid($this->fieldNames);
+        } elseif ($this->isMustAndCanTUseFieldNames()) {
+            throw TransformToObjectException::fieldNamesArrayNotValid($this->fieldNames, $this->array);
         };
     }
 
     private function isValidStringIndexes(array $array)
     {
-        $result = true;
+        $result = !empty($array);
         foreach ($array as $index => $value) {
             if (!$this->isValidString($index)) {
                 return false;
@@ -114,9 +114,7 @@ class TransformToObject extends AbstractArrayHelper
     {
         $regex = '|\W|';
         $replaced = preg_replace($regex, '', $index);
-        $match = preg_match('|[a-z]i|', $replaced, $matches, PREG_OFFSET_CAPTURE);
-        return is_string($replaced)
-            && (int)$match;
+        return is_string($replaced) && str_replace('_', '', $replaced) && !is_numeric($replaced{1});
     }
 
     /**
@@ -124,24 +122,28 @@ class TransformToObject extends AbstractArrayHelper
      */
     protected function isValidFieldNames()
     {
-        return (sizeof($this->fieldNames) !== sizeof($this->array) || !$this->isValidStringIndexes($this->fieldNames));
+        $isValidStringIndexes = $this->isValidStringIndexes($this->fieldNames);
+        return (sizeof($this->fieldNames) === sizeof($this->array) && $isValidStringIndexes);
     }
 
     /**
      * @return bool
      */
-    protected function isCanUseFieldNames()
+    protected function isMustAndCanTUseFieldNames()
     {
-        return !$this->getOptionWithDefault(self::CONFIG_STRING_INDEXES) &&
-        $this->isValidFieldNames();
+        $optionWithDefault = $this->getOptionWithDefault(self::CONFIG_STRING_INDEXES);
+        $isValidFieldNames = $this->isValidFieldNames();
+        return  !$optionWithDefault && !$isValidFieldNames;
     }
 
     /**
      * @return bool
      */
-    protected function isCanUseStringIndexes()
+    protected function isMustAndCanTUseStringIndexes()
     {
-        return $this->getOptionWithDefault(self::CONFIG_STRING_INDEXES) && $this->isValidStringIndexes($this->array);
+        $optionWithDefault = $this->getOptionWithDefault(self::CONFIG_STRING_INDEXES);
+        $isValidStringIndexes = $this->isValidStringIndexes($this->array);
+        return $optionWithDefault && $isValidStringIndexes;
     }
 
     /**
@@ -227,7 +229,7 @@ class TransformToObject extends AbstractArrayHelper
         $propertiesCode = '';
         foreach ($array as $key => $value) {
             $initValue = $this->getAvailableOptionValue($value, self::CONFIG_VALUES_AS_DEFAULT)
-                ? null: $this->getDefaultPropertyValue($value);
+                ? $this->getDefaultPropertyValue($value) : null;
             $propertyVisibility = $this->getAvailableOptionValue($value, self::CONFIG_PROPERTY_VISIBILITY);
             $propertiesCode .= PHPCodeGenerator::property($this->normalise($key), $propertyVisibility, $initValue);
         }
@@ -316,11 +318,12 @@ class TransformToObject extends AbstractArrayHelper
 
     protected function normalise($value)
     {
-        $normalizeValue = preg_replace('|^/W|', '', $value);
-        preg_match('|[a-z]|', $value, $matches, PREG_OFFSET_CAPTURE);
-        foreach ($matches as $key => $match) {
-            $normalizeValue[$match[1]] = ucfirst($match[0]);
+        $replacedValue = preg_replace('|\W|', '', $value);
+        $normalized = '';
+        $explode = explode('_', $replacedValue);
+        foreach ($explode as $key => $part) {
+            $normalized .= (int)$key ? ucfirst($part) : $part;
         }
-        return $normalizeValue;
+        return $normalized;
     }
 }

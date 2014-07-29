@@ -4,7 +4,7 @@ use Helpers\Refactor\Arrays\TransformToObject;
 require_once 'autoLoad.php';
 $testArrays = [
     [
-        'testA' => 1, 'testB' => 2, 'testTest_test_c-34-%%' => 3, '%%__S' => 4, '\'^&*' => 5
+        'testA_TEST___' => 1, '_testBad_' => 2, 'testTest_test_c-34-%%' => 3, '__s$$' => 4, '5_a_%_5___5___sdf' => 5
     ],
     [],
     []
